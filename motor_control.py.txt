@@ -1,0 +1,47 @@
+import RPi.GPIO as GPIO
+import time
+import firebase_admin
+from firebase_admin import credentials, db
+
+# 定義 A4988 的步進訊號（Step）和方向訊號（Direction）
+STEP_PIN = 17
+DIR_PIN = 18
+
+# 設定步進模式的控制參數，這裡假設使用完全步進
+STEPS_PER_REVOLUTION = 200  # NEMA 17 通常每圈 200 步（依照細分模式會有所不同）
+
+def setup_motor():
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setup(STEP_PIN, GPIO.OUT)
+    GPIO.setup(DIR_PIN, GPIO.OUT)
+    GPIO.output(STEP_PIN, GPIO.LOW)
+    GPIO.output(DIR_PIN, GPIO.LOW)
+
+# 定義馬達旋轉的函式，依據步進數來控制轉動
+def rotate_motor(degrees, direction=1):
+    steps = int(STEPS_PER_REVOLUTION * degrees / 360)  # 將角度轉換成步進數
+    GPIO.output(DIR_PIN, GPIO.HIGH if direction == 1 else GPIO.LOW)  # 設定方向
+    for _ in range(steps):
+        GPIO.output(STEP_PIN, GPIO.HIGH)
+        time.sleep(0.001)  # 控制步進訊號的速度
+        GPIO.output(STEP_PIN, GPIO.LOW)
+        time.sleep(0.001)
+
+# Firebase 相關部分，與您的原始程式一致
+cred = credentials.Certificate('/home/x120612032/2222/gaiabitplzzz-firebase-adminsdk-u013f-9353823e8b.json')
+firebase_admin.initialize_app(cred, {
+    'databaseURL':'https://gaiabitplzzz-default-rtdb.asia-southeast1.firebasedatabase.app/'
+})
+
+def listen_for_count_change():
+    ref = db.reference('/Count')
+    ref.listen(handle_count_change)
+
+def handle_count_change(event):
+    new_count = event.data
+    if new_count in [0, 90, 180, 360]:
+        rotate_motor(new_count)
+
+if __name__ == "__main__":
+    setup_motor()
+    listen_for_count_change()
